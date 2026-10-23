@@ -7,7 +7,7 @@
  *
  * - 'clear' — the main process maps the lever to native window opacity
  *   (`setOpacity`), so the whole window fades, text included. macOS + Windows;
- *   `setOpacity` is a no-op on Linux.
+ *   Hermes keeps Linux opaque even on Electron versions that implement it.
  * - 'glass' — the window stays fully opaque at the native level and the
  *   renderer thins its page surfaces instead, letting a platform material
  *   read as a matte blur while text keeps full contrast. macOS rides
@@ -112,6 +112,11 @@ export interface TranslucencyState {
   scope: GlassScope
 }
 
+/** Apply platform policy to resolved state, without rewriting saved preferences. */
+export function effectiveTranslucencyState(state: TranslucencyState, supported: boolean): TranslucencyState {
+  return supported ? state : { ...state, mode: 'clear', intensity: 0, fade: 0 }
+}
+
 /**
  * The half of the state that is scoped to the light/dark appearance.
  *
@@ -142,8 +147,8 @@ const DEFAULT_VALUES: Record<'mac' | 'windows', Record<Appearance, TranslucencyV
 }
 
 /**
- * The untouched values for an appearance on this platform. Linux never reaches
- * here — translucency is unsupported there, so nothing resolves.
+ * The untouched values for an appearance on this platform. Unsupported
+ * platforms may resolve these preferences, but effective state stays opaque.
  */
 export function defaultTranslucencyValues(appearance: Appearance, isWindows: boolean): TranslucencyValues {
   return DEFAULT_VALUES[isWindows ? 'windows' : 'mac'][appearance]
@@ -194,10 +199,9 @@ export function clampIntensity(value: unknown): number {
 }
 
 /**
- * Whether this OS can do ANY translucency. Clear rides `setOpacity`, which
- * Electron documents as doing nothing on Linux, and glass needs a native
- * material Linux does not have — so the whole setting is dead there and the
- * row should not be shown at all.
+ * Whether Hermes offers translucency on this OS. Linux stays opaque by product
+ * policy, even where Electron implements native opacity. This gates effective
+ * state as well as the settings row; glass support is a separate capability.
  */
 export function translucencySupportedOn(platform: string): boolean {
   return platform === 'darwin' || platform === 'win32'

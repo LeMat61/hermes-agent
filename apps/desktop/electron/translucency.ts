@@ -48,6 +48,7 @@ export {
   DEFAULT_GLASS_SCOPE,
   defaultTranslucencyState,
   defaultTranslucencyValues,
+  effectiveTranslucencyState,
   GLASS_MATERIALS,
   GLASS_SCOPES,
   glassActive,

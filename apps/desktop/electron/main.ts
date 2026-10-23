@@ -575,6 +575,7 @@ import { nativeOverlayWidth as computeNativeOverlayWidth, titleBarOverlayOptions
 import {
   applyWindowsBackdrop,
   defaultTranslucencyState,
+  effectiveTranslucencyState,
   glassActive,
   glassSupportedOn,
   normalizeState as normalizeTranslucency,
@@ -736,8 +737,8 @@ const DARWIN_MAJOR = IS_MAC ? Number.parseInt(os.release(), 10) || 0 : 0
 // Glass: macOS vibrancy, or Windows 11 22H2+ system backdrop. Computed once
 // so the renderer, the persisted default, and every chat window agree.
 const GLASS_SUPPORTED = glassSupportedOn(process.platform, os.release())
-// Clear rides setOpacity, a documented no-op on Linux, so neither mode works
-// there and Settings drops the row entirely.
+// Hermes does not offer translucency on Linux, even where Electron implements
+// setOpacity. Enforce the same policy before window creation and on every IPC.
 const TRANSLUCENCY_SUPPORTED = translucencySupportedOn(process.platform)
 const APP_ROOT = app.getAppPath()
 
@@ -1497,7 +1498,7 @@ nativeTheme.themeSource = readPersistedThemeSource()
 // — a matte blur with full-contrast text. macOS uses vibrancy; Windows 11
 // uses DWM acrylic/mica/tabbed. Persisted so a cold launch applies it at
 // window creation, before the renderer reports its value.
-// macOS + Windows only; `setOpacity` is a no-op on Linux.
+// Offered on macOS + Windows only; Linux effective state is forced opaque.
 const TRANSLUCENCY_CONFIG_PATH = path.join(app.getPath('userData'), 'translucency.json')
 
 function readPersistedTranslucency() {
@@ -1522,7 +1523,9 @@ function writePersistedTranslucency(state) {
   }
 }
 
-let translucencyState = readPersistedTranslucency()
+// Gate both persisted and first-launch defaults before any window is created.
+// This native mirror holds effective state; renderer preferences stay separate.
+let translucencyState = effectiveTranslucencyState(readPersistedTranslucency(), TRANSLUCENCY_SUPPORTED)
 
 // Chat windows whose webContents backing follows translucency (primary,
 // instance peers, session windows). The HUD / pet overlay / quick entry /
@@ -16814,7 +16817,7 @@ ipcMain.on('hermes:feature-flags', (event: IpcMainEvent): void => {
 })
 
 ipcMain.on('hermes:translucency', (_event, payload) => {
-  const next = normalizeTranslucency(payload, GLASS_SUPPORTED)
+  const next = effectiveTranslucencyState(normalizeTranslucency(payload, GLASS_SUPPORTED), TRANSLUCENCY_SUPPORTED)
   const previous = translucencyState
 
   if (

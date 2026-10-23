@@ -23,6 +23,7 @@ import {
   type Appearance,
   clampIntensity,
   defaultTranslucencyValues,
+  effectiveTranslucencyState,
   GLASS_MATERIALS,
   GLASS_SCOPES,
   type GlassMaterial,
@@ -74,9 +75,9 @@ export const GLASS_SUPPORTED =
     : isMacPlatform() || isWindowsPlatform()
 
 /**
- * Whether the setting is worth showing at all. Linux has neither half —
- * `setOpacity` is a documented no-op and there is no native material — so
- * Settings hides the row rather than offering a lever that does nothing.
+ * Whether Hermes offers the setting. Linux stays opaque by product policy,
+ * even on Electron versions with working native opacity. The same flag gates
+ * effective state below, without changing the user's persisted book.
  */
 export const TRANSLUCENCY_SUPPORTED =
   typeof window !== 'undefined' && typeof window.hermesDesktop?.translucencySupported === 'boolean'
@@ -116,7 +117,7 @@ export function setAppearance(appearance: Appearance): void {
 
 /** The resolved state for the painted appearance — the shape every consumer reads. */
 export const $translucency = computed([$translucencyBook, $appearance], (book, appearance) =>
-  resolveTranslucency(book, appearance, isWindowsPlatform())
+  effectiveTranslucencyState(resolveTranslucency(book, appearance, isWindowsPlatform()), TRANSLUCENCY_SUPPORTED)
 )
 
 /** Write an edit against the appearance being painted. */
